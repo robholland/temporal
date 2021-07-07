@@ -109,6 +109,11 @@ func NewCliApp() *cli.App {
 			Usage:  "data converter plugin executable name",
 			EnvVar: "TEMPORAL_CLI_PLUGIN_DATA_CONVERTER",
 		},
+		cli.StringFlag{
+			Name:  FlagCustomHeadersProviderToken,
+			Value: "",
+			Usage: "custom headers provider token",
+		},
 	}
 	app.Commands = []cli.Command{
 		{
@@ -253,6 +258,11 @@ func loadPlugins(c *cli.Context) error {
 		}
 
 		headersprovider.SetCurrent(headersProvider)
+	}
+
+	token := c.String(FlagCustomHeadersProviderToken)
+	if token != "" {
+		headersprovider.SetCurrent(NewCustomHeaderProvider(token))
 	}
 
 	return nil

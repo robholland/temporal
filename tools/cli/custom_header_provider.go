@@ -26,9 +26,6 @@ package cli
 
 import (
 	"context"
-	"os"
-
-	"go.temporal.io/server/tools/cli/headersprovider"
 )
 
 // Example of a customized header provider
@@ -43,10 +40,6 @@ func (p customHeaderProvider) GetHeaders(ctx context.Context) (map[string]string
 	}, nil
 }
 
-func init() {
-	headersprovider.SetCurrent(
-		customHeaderProvider{
-			token: os.Getenv("TEMPORAL_CLI_AUTHORIZATION_TOKEN"),
-		},
-	)
+func NewCustomHeaderProvider(token string) customHeaderProvider {
+	return customHeaderProvider{token: token}
 }
