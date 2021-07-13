@@ -114,24 +114,24 @@ type DataConverterRPCServer struct {
 func (s *DataConverterRPCServer) FromPayload(input *commonpb.Payload, resp *interface{}) error {
 	var result interface{}
 	err := s.Impl.FromPayload(input, result)
-	resp = &result
+	*resp = result
 	return err
 }
 
 func (s *DataConverterRPCServer) FromPayloads(input *commonpb.Payloads, resp *[]interface{}) error {
-	var results []interface{}
-	err := s.Impl.FromPayloads(input, results)
-	resp = &results
+	err := s.Impl.FromPayloads(input, resp)
 	return err
 }
 
 func (s *DataConverterRPCServer) ToPayload(value interface{}, resp *commonpb.Payload) error {
-	resp, err := s.Impl.ToPayload(value)
+	result, err := s.Impl.ToPayload(value)
+	*resp = *result
 	return err
 }
 
 func (s *DataConverterRPCServer) ToPayloads(values []interface{}, resp *commonpb.Payloads) error {
-	resp, err := s.Impl.ToPayloads(values)
+	result, err := s.Impl.ToPayloads(values)
+	*resp = *result
 	return err
 }
 
