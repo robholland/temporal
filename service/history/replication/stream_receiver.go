@@ -520,6 +520,7 @@ func newStream(
 		clientProvider,
 		processToolBox.MetricsHandler,
 		log.With(processToolBox.Logger, tag.ShardID(clientShardKey.ShardID)),
+		processToolBox.Config.ReplicationStreamReceiverBlockRecv,
 	)
 }
 

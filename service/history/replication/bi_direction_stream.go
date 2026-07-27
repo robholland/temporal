@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/server/common/log"
@@ -20,6 +21,8 @@ const (
 
 const (
 	defaultChanSize = 512 // make the buffer size large enough so buffer will not be blocked
+	// recvPausePollInterval is how often the recv loop re-checks the pauseRecv predicate while paused.
+	recvPausePollInterval = time.Second
 )
 
 var (
@@ -51,6 +54,10 @@ type (
 		clientProvider BiDirectionStreamClientProvider[Req, Resp]
 		metricsHandler metrics.Handler
 		logger         log.Logger
+		// pauseRecv, when set and returning true, makes the recv loop stop calling Recv() on the
+		// underlying stream, so the stream is not drained and a backlog builds up on the sender.
+		// Testing-only knob; nil means never pause.
+		pauseRecv func() bool
 
 		sync.Mutex
 		status          int32
@@ -68,12 +75,14 @@ func NewBiDirectionStream[Req any, Resp any](
 	clientProvider BiDirectionStreamClientProvider[Req, Resp],
 	metricsHandler metrics.Handler,
 	logger log.Logger,
+	pauseRecv func() bool,
 ) *BiDirectionStreamImpl[Req, Resp] {
 	return &BiDirectionStreamImpl[Req, Resp]{
 		ctx:            context.Background(),
 		clientProvider: clientProvider,
 		metricsHandler: metricsHandler,
 		logger:         logger,
+		pauseRecv:      pauseRecv,
 
 		status:          streamStatusInitialized,
 		channel:         make(chan StreamResp[Resp], defaultChanSize),
@@ -159,6 +168,7 @@ func (s *BiDirectionStreamImpl[Req, Resp]) recvLoop() {
 	defer s.Close()
 
 	for {
+		s.waitWhileRecvPaused()
 		resp, err := s.streamingClient.Recv()
 		switch err {
 		case nil:
@@ -170,6 +180,20 @@ func (s *BiDirectionStreamImpl[Req, Resp]) recvLoop() {
 			s.notifyRecvChannel(errResp, NewStreamError("BiDirectionStream recv error", err))
 			return
 		}
+	}
+}
+
+// waitWhileRecvPaused blocks as long as the pauseRecv predicate reports that receiving is paused,
+// so the recv loop stops calling Recv() and the underlying stream is not drained. This deliberately
+// lets a backlog accumulate on the sender (until its flow-control window / buffers fill and its Send
+// blocks) and is intended for testing sender-side buffering behavior only. It returns promptly once
+// the stream is closed so the recv loop can exit.
+func (s *BiDirectionStreamImpl[Req, Resp]) waitWhileRecvPaused() {
+	if s.pauseRecv == nil {
+		return
+	}
+	for s.pauseRecv() && s.IsValid() {
+		time.Sleep(recvPausePollInterval)
 	}
 }
 

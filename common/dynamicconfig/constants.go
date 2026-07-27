@@ -2957,6 +2957,13 @@ that task will be sent to DLQ.`,
 		10,
 		"ReplicationStreamSenderLivenessMultiplier is the multiplier of liveness check interval on stream sender",
 	)
+	ReplicationStreamReceiverBlockRecv = NewGlobalBoolSetting(
+		"history.ReplicationStreamReceiverBlockRecv",
+		false,
+		`ReplicationStreamReceiverBlockRecv, when true, makes the replication stream receiver stop calling Recv() on the
+underlying stream, so it stops draining the stream and deliberately builds up a backlog. This is a testing-only knob
+for observing sender-side buffering / flow-control behavior and must never be enabled in production.`,
+	)
 	EnableHistoryReplicationRateLimiter = NewNamespaceBoolSetting(
 		"history.EnableHistoryReplicationRateLimiter",
 		false,
