@@ -332,7 +332,6 @@ type Config struct {
 	ReplicationEnableRateLimitShadowMode                dynamicconfig.BoolPropertyFn
 	ReplicationStreamReceiverLivenessMultiplier         dynamicconfig.IntPropertyFn
 	ReplicationStreamSenderLivenessMultiplier           dynamicconfig.IntPropertyFn
-	ReplicationStreamReceiverBlockRecv                  dynamicconfig.BoolPropertyFn
 	EnableHistoryReplicationRateLimiter                 dynamicconfig.BoolPropertyFnWithNamespaceFilter
 
 	// The following are used by consistent query
@@ -649,7 +648,6 @@ func NewConfig(
 		ReplicationStreamSendEmptyTaskDuration:              dynamicconfig.ReplicationStreamSendEmptyTaskDuration.Get(dc),
 		ReplicationStreamReceiverLivenessMultiplier:         dynamicconfig.ReplicationStreamReceiverLivenessMultiplier.Get(dc),
 		ReplicationStreamSenderLivenessMultiplier:           dynamicconfig.ReplicationStreamSenderLivenessMultiplier.Get(dc),
-		ReplicationStreamReceiverBlockRecv:                  dynamicconfig.ReplicationStreamReceiverBlockRecv.Get(dc),
 		EnableHistoryReplicationRateLimiter:                 dynamicconfig.EnableHistoryReplicationRateLimiter.Get(dc),
 
 		MaximumBufferedEventsBatch:       dynamicconfig.MaximumBufferedEventsBatch.Get(dc),

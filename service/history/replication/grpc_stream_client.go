@@ -7,13 +7,36 @@ import (
 	"go.temporal.io/server/client"
 	"go.temporal.io/server/client/history"
 	"go.temporal.io/server/common/cluster"
+	"go.temporal.io/server/common/quotas"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
+)
+
+const (
+	replicationStreamReceiverBytesPerSecond = 1 << 20
+	replicationStreamReceiverBurstBytes     = 64 << 10
+)
+
+// This test-only branch deliberately caps aggregate receive bandwidth per history process so
+// transport backpressure develops gradually instead of stopping replication completely.
+var replicationStreamReceiverLimiter = quotas.NewRateLimiter(
+	replicationStreamReceiverBytesPerSecond,
+	replicationStreamReceiverBurstBytes,
 )
 
 type (
 	StreamBiDirectionStreamClientProvider struct {
 		clusterMetadata cluster.Metadata
 		clientBean      client.Bean
+	}
+	replicationStreamReceiverRateLimiter interface {
+		Burst() int
+		WaitN(context.Context, int) error
+	}
+	rateLimitedReplicationStreamClient struct {
+		BiDirectionStreamClient[*adminservice.StreamWorkflowReplicationMessagesRequest, *adminservice.StreamWorkflowReplicationMessagesResponse]
+		ctx         context.Context
+		rateLimiter replicationStreamReceiverRateLimiter
 	}
 )
 
@@ -51,5 +74,39 @@ func (p *StreamBiDirectionStreamClientProvider) Get(
 			ShardID:   serverShardKey.ShardID,
 		},
 	))
-	return adminClient.StreamWorkflowReplicationMessages(ctx)
+	streamClient, err := adminClient.StreamWorkflowReplicationMessages(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &rateLimitedReplicationStreamClient{
+		BiDirectionStreamClient: streamClient,
+		ctx:                     ctx,
+		rateLimiter:             replicationStreamReceiverLimiter,
+	}, nil
+}
+
+func (c *rateLimitedReplicationStreamClient) Recv() (*adminservice.StreamWorkflowReplicationMessagesResponse, error) {
+	response, err := c.BiDirectionStreamClient.Recv()
+	if err != nil {
+		return nil, err
+	}
+	if err := waitForReplicationStreamReceiverRateLimit(c.ctx, c.rateLimiter, proto.Size(response)); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func waitForReplicationStreamReceiverRateLimit(
+	ctx context.Context,
+	rateLimiter replicationStreamReceiverRateLimiter,
+	messageSize int,
+) error {
+	for messageSize > 0 {
+		chunkSize := min(messageSize, rateLimiter.Burst())
+		if err := rateLimiter.WaitN(ctx, chunkSize); err != nil {
+			return err
+		}
+		messageSize -= chunkSize
+	}
+	return nil
 }

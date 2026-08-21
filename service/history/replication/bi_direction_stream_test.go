@@ -77,7 +77,6 @@ func (s *biDirectionStreamSuite) SetupTest() {
 		s.streamClientProvider,
 		metrics.NoopMetricsHandler,
 		log.NewTestLogger(),
-		nil,
 	)
 }
 
